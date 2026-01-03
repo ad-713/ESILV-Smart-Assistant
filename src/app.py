@@ -6,6 +6,7 @@ import sys
 from rag import load_documents, split_documents, add_to_chroma, clear_database
 from agents import run_crew
 from crawler import crawl_esilv
+from leads_manager import get_leads_dataframe, clear_leads
 
 # Fix for Windows asyncio loop with Playwright
 if sys.platform == "win32":
@@ -119,3 +120,33 @@ with tab_admin:
     if st.button("Clear Knowledge Base"):
         clear_database()
         st.success("Database cleared!")
+
+    st.divider()
+
+    # Leads Section
+    st.subheader("📋 Interested Users (Leads)")
+    
+    # Reload leads
+    leads_df = get_leads_dataframe()
+    
+    if not leads_df.empty:
+        st.dataframe(leads_df, use_container_width=True)
+        
+        # CSV Download
+        csv = leads_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Leads as CSV",
+            data=csv,
+            file_name='esilv_leads.csv',
+            mime='text/csv',
+        )
+        
+        if st.button("🗑️ Clear Leads Data", type="primary"):
+            if clear_leads():
+                st.success("Leads data cleared successfully!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Failed to clear leads data.")
+    else:
+        st.info("No leads captured yet.")
