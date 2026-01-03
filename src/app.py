@@ -15,9 +15,47 @@ st.set_page_config(page_title="ESILV Smart Assistant", page_icon="🎓")
 
 st.title("🎓 ESILV Smart Assistant")
 
-# Sidebar for Admin/Upload
-with st.sidebar:
-    st.header("📚 Knowledge Base")
+# Create Tabs
+tab_user, tab_admin = st.tabs(["User", "Admin"])
+
+# --- USER TAB (Chatbot) ---
+with tab_user:
+    st.header("💬 Chat Assistant")
+    
+    # Chat Interface
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Display chat history
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # User Input
+    if prompt := st.chat_input("Ask a question about ESILV..."):
+        # Add user message to history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Generate response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    response = run_crew(prompt)
+                    st.markdown(response)
+                    # Add assistant response to history
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
+                    st.info("Make sure Ollama is running (`ollama serve`) and you have pulled the model (`ollama pull llama3.1:8b`). Also ensure `qwen3-embedding:0.6b` is pulled for embeddings.")
+
+# --- ADMIN TAB (Knowledge Base & Crawler) ---
+with tab_admin:
+    st.header("📚 Knowledge Base Management")
+    
+    # Document Upload Section
+    st.subheader("📄 Document Upload")
     uploaded_files = st.file_uploader("Upload PDF Documents", accept_multiple_files=True, type=['pdf'])
     
     if st.button("Process Documents"):
@@ -47,8 +85,10 @@ with st.sidebar:
         else:
             st.warning("Please upload files first.")
 
-    st.markdown("---")
-    st.header("🌐 Web Crawler")
+    st.divider()
+
+    # Web Crawler Section
+    st.subheader("🌐 Web Crawler")
     start_url = st.text_input("Start URL", value="https://www.esilv.fr/en/")
     max_depth = st.slider("Max Depth", min_value=1, max_value=3, value=1)
     
@@ -72,34 +112,10 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Crawling failed: {e}")
                 
+    st.divider()
+    
+    # Maintenance Section
+    st.subheader("🛠️ Maintenance")
     if st.button("Clear Knowledge Base"):
         clear_database()
         st.success("Database cleared!")
-
-# Chat Interface
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# User Input
-if prompt := st.chat_input("Ask a question about ESILV..."):
-    # Add user message to history
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # Generate response
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            try:
-                response = run_crew(prompt)
-                st.markdown(response)
-                # Add assistant response to history
-                st.session_state.messages.append({"role": "assistant", "content": response})
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
-                st.info("Make sure Ollama is running (`ollama serve`) and you have pulled the model (`ollama pull llama3.1:8b`). Also ensure `qwen3-embedding:0.6b` is pulled for embeddings.")
