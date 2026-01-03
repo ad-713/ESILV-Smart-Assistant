@@ -3,13 +3,18 @@
 An intelligent chatbot dedicated to ESILV, capable of answering questions about programs and admissions using RAG (Retrieval-Augmented Generation) and coordinating agents for student enrollment.
 
 ## Features
--   **RAG System**: Answers questions based on uploaded PDF documents (e.g., brochures, course catalogs).
+
+-   **RAG System**: Answers questions based on uploaded PDF documents and crawled web content.
 -   **Multi-Agent System**: Uses CrewAI to coordinate an Information Specialist and an Enrollment Assistant.
--   **Streamlit UI**: A friendly chat interface to interact with the bot and upload documents.
+-   **Web Crawler**: Integrated [`Crawl4AI`](src/crawler.py) to scrap information directly from the ESILV website with content filtering for relevance.
+-   **Lead Management**: Automatically captures and stores student lead information (name, email, interest) during chat interactions.
+-   **Streamlit UI**: A tabbed interface separating the user chat experience from administrative management tools.
 
 ## Prerequisites
+
 -   Python 3.10+
 -   [Ollama](https://ollama.com/) installed and running locally.
+-   [Playwright](https://playwright.dev/) dependencies (for the web crawler).
 
 ## Setup
 
@@ -18,30 +23,44 @@ An intelligent chatbot dedicated to ESILV, capable of answering questions about 
 2.  **Install Dependencies**
     ```bash
     pip install -r requirements.txt
+    playwright install
     ```
 
 3.  **Setup Ollama**
-    Make sure Ollama is running and pull the `llama3.1:8b` model (for chat) and `qwen3-embedding:0.6b` (for embeddings):
+    Make sure Ollama is running and pull the required model for the chat:
     ```bash
     ollama serve
     ollama pull llama3.1:8b
-    ollama pull qwen3-embedding:0.6b
     ```
 
-4.  **Run the Application**
+4.  **Embeddings Model**
+    The RAG system uses `nomic-ai/nomic-embed-text-v1` from HuggingFace for generating embeddings. This model is automatically downloaded on the first run.
+
+5.  **Run the Application**
     ```bash
     streamlit run src/app.py
     ```
 
 ## Usage
-1.  **Upload Documents**: Use the sidebar to upload PDF documents (e.g., "ESILV Brochure.pdf"). Click "Process Documents" to build the knowledge base.
-2.  **Chat**: Ask questions in the main chat window.
-    *   *Example*: "What are the majors available at ESILV?"
-    *   *Example*: "How do I apply for the engineering program?"
-3.  **Enrollment**: If you express interest (e.g., "I want to apply"), the bot may ask for your details.
+
+The application is divided into two main tabs:
+
+### User Tab
+-   **Chat**: Ask questions in the chat window about ESILV programs, admissions, or campus life.
+-   **Enrollment**: If you express interest, the assistant will capture your details to save as a lead.
+
+### Admin Tab
+-   **Document Upload**: Upload PDF brochures or catalogs to the RAG knowledge base.
+-   **Web Crawler**: Enter an ESILV URL to crawl and index web content. Includes a relevance filter to ensure high-quality data.
+-   **Lead Management**: View, download (as CSV), or clear captured student leads.
+-   **Maintenance**: Clear the knowledge base to reset the RAG system.
 
 ## Project Structure
--   `src/app.py`: Main Streamlit application.
--   `src/agents.py`: CrewAI agent definitions and orchestration.
--   `src/rag.py`: Logic for loading PDFs, chunking, and ChromaDB operations.
--   `data/`: Stores raw files and the ChromaDB vector store.
+
+-   [`src/app.py`](src/app.py): Main Streamlit application with tabbed UI.
+-   [`src/agents.py`](src/agents.py): CrewAI agent definitions and enrollment orchestration logic.
+-   [`src/rag.py`](src/rag.py): Logic for document processing and ChromaDB vector store operations.
+-   [`src/crawler.py`](src/crawler.py): Web crawling implementation using `Crawl4AI`.
+-   [`src/leads_manager.py`](src/leads_manager.py): Lead storage and retrieval logic.
+-   `data/`: Stores raw files, the ChromaDB vector store, and captured leads (`leads.json`).
+
