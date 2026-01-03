@@ -7,14 +7,14 @@ from typing import List
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # Configuration
 CHROMA_PATH = "data/chroma_db"
 DATA_PATH = "data/raw"
 
 def get_embedding_function():
-    return OllamaEmbeddings(model="qwen3-embedding:0.6b")
+    return HuggingFaceEmbeddings(model_name="nomic-ai/nomic-embed-text-v1", model_kwargs={"trust_remote_code": True})
 
 def load_documents(files):
     """
@@ -31,7 +31,7 @@ def split_documents(documents):
     Splits documents into smaller chunks.
     """
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
+        chunk_size=1200,
         chunk_overlap=80,
         length_function=len,
         is_separator_regex=False,
@@ -39,18 +39,34 @@ def split_documents(documents):
     return text_splitter.split_documents(documents)
 
 def add_to_chroma(chunks: List):
+    total_start_time = time.time()
+    
+    print("--- Start add_to_chroma ---")
+    
+    # Measure DB Init
+    t0 = time.time()
     db = Chroma(
         persist_directory=CHROMA_PATH, 
         embedding_function=get_embedding_function()
     )
+    print(f"⏱️ DB Init: {time.time() - t0:.4f}s")
 
+    # Measure ID calculation
+    t0 = time.time()
     chunks_with_ids = calculate_chunk_ids(chunks)
+    print(f"⏱️ ID Calculation: {time.time() - t0:.4f}s")
 
-    # 1. Fetch existing IDs in one go
-    existing_items = db.get(include=[])
+    # Measure Fetching existing IDs
+    t0 = time.time()
+    # 1. Fetch existing IDs in one go (Optimized)
+    existing_items = db.get(ids=[c.metadata["id"] for c in chunks_with_ids], include=[])
     existing_ids = set(existing_items["ids"])
+    print(f"⏱️ Fetch Existing IDs: {time.time() - t0:.4f}s")
     
+    # Measure Filtering
+    t0 = time.time()
     new_chunks = [c for c in chunks_with_ids if c.metadata["id"] not in existing_ids]
+    print(f"⏱️ Filtering New Chunks: {time.time() - t0:.4f}s")
 
     if not new_chunks:
         print("✅ No new documents to add")
@@ -58,40 +74,34 @@ def add_to_chroma(chunks: List):
 
     print(f"👉 Adding {len(new_chunks)} new documents...")
 
-    # 2. Optimized Batch Size (250 is usually ideal for local GPUs)
-    BATCH_SIZE = 250 
-    start_time = time.time()
-
-    # Get parallel execution count from env
-    num_parallel = int(os.environ.get("OLLAMA_NUM_PARALLEL", 1))
-
-    # Helper function to process a batch
-    def process_batch(batch):
-        batch_ids = [chunk.metadata["id"] for chunk in batch]
-        db.add_documents(batch, ids=batch_ids)
-        return len(batch)
-
-    # Prepare batches
-    batches = [new_chunks[i : i + BATCH_SIZE] for i in range(0, len(new_chunks), BATCH_SIZE)]
+    # 2. Use single-threaded, large batch ingestion
+    BATCH_SIZE = 1024
+    embedding_function = get_embedding_function()
     
-    print(f"🚀 Processing with {num_parallel} parallel threads")
-    
-    total_processed = 0
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_parallel) as executor:
-        futures = [executor.submit(process_batch, batch) for batch in batches]
+    # Process in batches
+    for i in range(0, len(new_chunks), BATCH_SIZE):
+        batch_start_time = time.time()
+        batch = new_chunks[i : i + BATCH_SIZE]
         
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                count = future.result()
-                total_processed += count
-                elapsed = time.time() - start_time
-                avg_speed = total_processed / elapsed
-                print(f"   Done {total_processed}/{len(new_chunks)} | Speed: {avg_speed:.1f} docs/sec")
-            except Exception as e:
-                print(f"❌ Error processing batch: {e}")
+        # 3. Precompute embeddings ONCE
+        embed_start_time = time.time()
+        embeddings = embedding_function.embed_documents(
+            [chunk.page_content for chunk in batch]
+        )
+        print(f"   ⏱️ Batch {i//BATCH_SIZE + 1} Embedding Generation: {time.time() - embed_start_time:.4f}s")
+        
+        add_start_time = time.time()
+        db._collection.add(
+            documents=[c.page_content for c in batch],
+            metadatas=[c.metadata for c in batch],
+            ids=[c.metadata["id"] for c in batch],
+            embeddings=embeddings
+        )
+        print(f"   ⏱️ Batch {i//BATCH_SIZE + 1} Add to DB: {time.time() - add_start_time:.4f}s")
+        
+        print(f"   Processed batch {i//BATCH_SIZE + 1}/{(len(new_chunks)-1)//BATCH_SIZE + 1} ({len(batch)} docs) in {time.time() - batch_start_time:.4f}s")
 
-    print(f"✅ Finished in {time.time() - start_time:.2f}s")
+    print(f"✅ Finished in {time.time() - total_start_time:.2f}s")
 
 def calculate_chunk_ids(chunks):
     """
