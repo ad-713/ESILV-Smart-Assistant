@@ -2,6 +2,12 @@
 
 An intelligent chatbot dedicated to ESILV, capable of answering questions about programs and admissions using RAG (Retrieval-Augmented Generation) and coordinating agents for student enrollment.
 
+## Authors
+
+- **Gabriel GERMAIN**
+- **Alexandre HERVE**
+- **Adrien GREVET**
+
 ## Features
 
 -   **RAG System**: Answers questions based on uploaded PDF documents and crawled web content.
