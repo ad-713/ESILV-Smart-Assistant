@@ -64,3 +64,14 @@ The application is divided into two main tabs:
 -   [`src/leads_manager.py`](src/leads_manager.py): Lead storage and retrieval logic.
 -   `data/`: Stores raw files, the ChromaDB vector store, and captured leads (`leads.json`).
 
+## User Interface
+
+### User use case example
+
+![User Tab](/screenshots/user-tab-exemple.png)
+
+### Admin use case example
+
+![Admin Tab](/screenshots/admin-tab-exemple-1.png)
+![](/screenshots/admin-tab-exemple-2.png)
+
