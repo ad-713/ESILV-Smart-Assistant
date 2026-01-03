@@ -9,3 +9,6 @@ pypdf
 pytest
 litellm
 crawl4ai
+sentence-transformers
+einops
+langchain-huggingface
