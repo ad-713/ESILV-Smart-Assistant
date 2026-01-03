@@ -1,0 +1,11 @@
+streamlit
+crewai
+crewai-tools
+langchain
+langchain-ollama 
+langchain-community
+chromadb
+pypdf
+pytest
+litellm
+crawl4ai
